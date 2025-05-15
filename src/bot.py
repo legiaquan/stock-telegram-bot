@@ -3,6 +3,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from services.stock_service import StockService
 from dotenv import load_dotenv
+from telegram.constants import ParseMode
 
 load_dotenv()
 
@@ -29,8 +30,11 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Các lệnh có sẵn:\n"
         "/start - Khởi động bot\n"
         "/help - Hiển thị trợ giúp\n"
-        "/price <mã> - Xem giá cổ phiếu\n\n"
-        "Hoặc bạn có thể gửi trực tiếp mã cổ phiếu (VD: VNM)"
+        "/price <mã> - Xem giá cổ phiếu\n"
+        "/history <mã> <số ngày> - Xem biểu đồ lịch sử giá\n"
+        "/rsi <mã> - Xem chỉ số RSI\n"
+        "/pe <mã> - Xem chỉ số P/E\n"
+        "\nHoặc bạn có thể gửi trực tiếp mã cổ phiếu (VD: VNM)"
     )
     await update.message.reply_text(help_text)
 
@@ -61,6 +65,38 @@ async def reply_stock_price(update: Update, stock_code: str) -> None:
         logger.error(error_message)
         await update.message.reply_text(error_message)
 
+async def history_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Vui lòng nhập mã cổ phiếu. Ví dụ: /history VNM 30")
+        return
+    stock_code = context.args[0].upper()
+    days = 30
+    if len(context.args) > 1 and context.args[1].isdigit():
+        days = int(context.args[1])
+    msg = await update.message.reply_text(f"🔄 Đang lấy lịch sử giá {stock_code}...")
+    img_path = StockService.get_history_chart(stock_code, days)
+    if img_path:
+        await update.message.reply_photo(photo=open(img_path, 'rb'), caption=f"Biểu đồ lịch sử giá {stock_code} ({days} ngày gần nhất)")
+    else:
+        await update.message.reply_text(f"Không lấy được dữ liệu lịch sử giá cho mã {stock_code}.")
+    await msg.delete()
+
+async def rsi_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Vui lòng nhập mã cổ phiếu. Ví dụ: /rsi VNM")
+        return
+    stock_code = context.args[0].upper()
+    result = StockService.get_rsi(stock_code)
+    await update.message.reply_text(result)
+
+async def pe_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Vui lòng nhập mã cổ phiếu. Ví dụ: /pe VNM")
+        return
+    stock_code = context.args[0].upper()
+    result = StockService.get_pe(stock_code)
+    await update.message.reply_text(result)
+
 # --- Main bot setup ---
 def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -71,6 +107,9 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CommandHandler("help", help_handler))
     application.add_handler(CommandHandler("price", price_handler))
+    application.add_handler(CommandHandler("history", history_handler))
+    application.add_handler(CommandHandler("rsi", rsi_handler))
+    application.add_handler(CommandHandler("pe", pe_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
