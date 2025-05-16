@@ -1,11 +1,17 @@
+env:
+	source venv/bin/activate
+
 bot:
-	python3 src/bot.py
+	python3 app/bot.py
+
+api:
+	uvicorn app.main:app --reload
 
 install:
 	pip install -r requirements.txt
 
 run:
-	python3 src/bot.py
+	python3 app/bot.py
 
 freeze:
 	pip freeze > requirements.txt
